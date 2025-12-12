@@ -1,0 +1,133 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// --------------------------------------
+// Enums
+// --------------------------------------
+
+enum UserTier {
+  FREE
+  HERO
+  LEGEND
+}
+
+enum AttributeType {
+  BASE
+  CUSTOM
+}
+
+// --------------------------------------
+// Models
+// --------------------------------------
+
+// The "Hero" (User)
+model User {
+  id            String    @id @default(uuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime? @map("email_verified")
+  image         String?
+  username      String?   @unique // Made optional as Auth.js might create user without it initially
+  passwordHash  String?   @map("password_hash") // Made optional for OAuth users
+  
+  // Onboarding Fields
+  bio           String?
+  dateOfBirth   DateTime? @map("date_of_birth")
+  gender        String?
+  firstName     String?   @map("first_name") // Keeping these for backward compat or specific usage
+  lastName      String?   @map("last_name")
+
+  // RPG / Gamification
+  tier          UserTier  @default(FREE)
+  kiboCoins     Int       @default(0) @map("kibo_coins")
+  maxCustomSlots Int      @default(0) @map("max_custom_slots")
+
+  // System fields
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  // Relation fields
+  accounts      Account[]
+  sessions      Session[]
+  attributes    UserAttribute[]
+
+  @@map("users")
+}
+
+// Auth.js Account
+model Account {
+  id                 String  @id @default(cuid())
+  userId             String  @map("user_id")
+  type               String
+  provider           String
+  providerAccountId  String  @map("provider_account_id")
+  refresh_token      String? @db.Text
+  access_token       String? @db.Text
+  expires_at         Int?
+  token_type         String?
+  scope              String?
+  id_token           String? @db.Text
+  session_state      String?
+ 
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+ 
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+// Auth.js Session
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique @map("session_token")
+  userId       String   @map("user_id")
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+ 
+  @@map("sessions")
+}
+
+// Auth.js VerificationToken
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+ 
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// RPG: Attribute Catalog
+model Attribute {
+  id          String        @id @default(cuid())
+  name        String        @unique
+  description String
+  color       String
+  icon        String
+  type        AttributeType
+
+  users       UserAttribute[]
+
+  @@map("attributes")
+}
+
+// RPG: User <-> Attribute Link
+model UserAttribute {
+  userId      String    @map("user_id")
+  attributeId String    @map("attribute_id")
+  
+  level       Int       @default(1)
+  currentXp   Int       @default(0) @map("current_xp")
+  isActive    Boolean   @default(true) @map("is_active")
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attribute   Attribute @relation(fields: [attributeId], references: [id], onDelete: Cascade)
+
+  @@id([userId, attributeId])
+  @@map("user_attributes")
+}

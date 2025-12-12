@@ -1,0 +1,17 @@
+{
+  "name": "kibo-platform",
+  "version": "0.0.0",
+  "packageManager": "pnpm@10.25.0",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "build": "turbo build",
+    "dev": "turbo run dev --parallel",
+    "lint": "turbo lint",
+    "format": "prettier --write \"**/*.{ts,tsx,md}\""
+  },
+  "devDependencies": {
+    "turbo": "latest",
+    "prettier": "latest"
+  }
+}
