@@ -18,6 +18,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     // Given "Account" and "Session" tables exist, "database" strategy is implied.
     // But wait, "Session" table exists, so default is database.
     // Let's leave session strategy to default (which is database when adapter is present).
+    secret: process.env.AUTH_SECRET,
 
     providers: [
         Google,

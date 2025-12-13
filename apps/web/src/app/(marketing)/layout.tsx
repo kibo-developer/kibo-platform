@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
 
 export default function MarketingLayout({
     children,
@@ -18,12 +19,12 @@ export default function MarketingLayout({
                         <Link href="/about" className="hover:text-zinc-900 transition-colors">About</Link>
                         <Link href="/faq" className="hover:text-zinc-900 transition-colors">FAQ</Link>
                     </nav>
-                    <div>
-                        <Link
-                            href="/dashboard"
-                            className="bg-zinc-900 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-zinc-800 transition-colors"
-                        >
-                            Login
+                    <div className="flex gap-3">
+                        <Link href="/register">
+                            <Button>Register</Button>
+                        </Link>
+                        <Link href="/login">
+                            <Button variant="outline">Login</Button>
                         </Link>
                     </div>
                 </div>
