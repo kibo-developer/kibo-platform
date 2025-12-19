@@ -13,6 +13,9 @@ COPY packages ./packages
 # Install Dependencies (Frozen for consistency)
 RUN pnpm install --frozen-lockfile
 
+# ✅ FIX: Generate Prisma Client for the monorepo package first
+RUN pnpm --filter=@kibo/database exec prisma generate
+
 # Build the API specifically (using Turbo logic)
 # This ensures we don't waste time building the Next.js frontend
 RUN pnpm turbo build --filter=@kibo/api
