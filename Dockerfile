@@ -15,7 +15,7 @@ RUN pnpm install --frozen-lockfile
 
 # Build the API specifically (using Turbo logic)
 # This ensures we don't waste time building the Next.js frontend
-RUN pnpm turbo build --filter=api
+RUN pnpm turbo build --filter=@kibo/api
 
 # Expose Cloud Run Port
 EXPOSE 8080
