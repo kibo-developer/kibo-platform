@@ -7,8 +7,8 @@ async function bootstrap() {
   const allowedOrigins = process.env.FRONTEND_URL?.split(',') || ['http://localhost:3000'];
   app.enableCors({ origin: allowedOrigins, credentials: true });
 
-  // Cloud Run Port Binding
-  await app.listen(process.env.PORT || 8080, '0.0.0.0');
-  console.log(`Kibo API running on port ${process.env.PORT || 8080}`);
+  const port = process.env.PORT || 8080;
+  await app.listen(port, '0.0.0.0');
+  console.log(`Server is running on port ${port}`);
 }
 bootstrap();
