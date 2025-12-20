@@ -8,8 +8,7 @@
     "build": "turbo build",
     "dev": "turbo run dev --parallel",
     "lint": "turbo lint",
-    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
-    "db:deploy": "pnpm --filter=@kibo/database db:deploy"
+    "format": "prettier --write \"**/*.{ts,tsx,md}\""
   },
   "devDependencies": {
     "turbo": "latest",
