@@ -1,5 +1,8 @@
 # Base Setup
 FROM node:20-alpine
+
+# Add missing system dependencies for Prisma on Alpine
+RUN apk add --no-cache openssl libc6-compat
 RUN npm install -g pnpm turbo
 WORKDIR /app
 
