@@ -13,8 +13,8 @@ COPY apps/api ./apps/api
 COPY packages ./packages
 
 RUN pnpm install --frozen-lockfile
-RUN pnpm --filter=@kibo/database exec prisma generate
-RUN pnpm turbo build --filter=@kibo/api
+RUN npx prisma@5.22.0 generate --schema=packages/database/prisma/schema.prisma
+RUN pnpm turbo build --filter=@kibo/api --force
 
 EXPOSE 8080
 CMD ["node", "apps/api/dist/main.js"]
