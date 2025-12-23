@@ -17,4 +17,4 @@ RUN pnpm --filter=@kibo/database exec prisma generate
 RUN pnpm turbo build --filter=@kibo/api --force
 
 EXPOSE 8080
-CMD ["node", "apps/api/dist/main.js"]
+CMD ["/bin/sh", "-c", "export DATABASE_URL=${DATABASE_URL:-$NEON_DATABASE_URL} && node apps/api/dist/main.js"]
