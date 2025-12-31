@@ -5,7 +5,7 @@ import Google from "next-auth/providers/google"
 import MicrosoftEntraID from "next-auth/providers/microsoft-entra-id"
 import Credentials from "next-auth/providers/credentials"
 import bcrypt from "bcryptjs"
-import { authConfig } from "./auth.config"
+import { authConfig } from "./config"
 import { z } from "zod"
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -18,7 +18,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     // Given "Account" and "Session" tables exist, "database" strategy is implied.
     // But wait, "Session" table exists, so default is database.
     // Let's leave session strategy to default (which is database when adapter is present).
-    secret: process.env.AUTH_SECRET,
+    secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
 
     providers: [
         Google,

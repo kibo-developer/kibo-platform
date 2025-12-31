@@ -1,0 +1,1 @@
+[2025-12-31T01:45:22.850Z] ERROR: Failed validation for: NODE_ENV, JWT_SECRET, FRONTEND_URL, DATABASE_URL. Context: unknown
