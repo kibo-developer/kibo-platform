@@ -2,12 +2,13 @@ import { Injectable } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { PrismaService } from '../prisma/prisma.service';
+import { User } from '@kibo/database';
 
 @Injectable()
 export class UsersService {
   constructor(private readonly prisma: PrismaService) { }
 
-  create(data: any) {
+  create(data: any): Promise<User> {
     return this.prisma.user.create({ data });
   }
 
