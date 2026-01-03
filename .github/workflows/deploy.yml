@@ -20,41 +20,63 @@ jobs:
   deploy-api:
     if: contains(github.event.head_commit.message, '[deploy-api]') || contains(github.event.head_commit.message, '[deploy-all]')
     runs-on: ubuntu-latest
+    permissions:
+      contents: "read"
+      id-token: "write"
     steps:
-      - uses: actions/checkout@v4
-      - uses: google-github-actions/auth@v2
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v2
         with:
           credentials_json: "${{ secrets.GCP_SA_KEY }}"
-      - uses: google-github-actions/setup-gcloud@v2
 
-      - name: Build API Image
-        run: |
-          gcloud builds submit --tag gcr.io/${{ secrets.GCP_PROJECT_ID }}/kibo-api-dev --file apps/api/Dockerfile .
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
 
-      - name: Deploy API
+      - name: Build and Deploy API
         run: |
           gcloud run deploy kibo-api-dev \
-            --image gcr.io/${{ secrets.GCP_PROJECT_ID }}/kibo-api-dev \
+            --source ./apps/api \
             --region us-east1 \
-            --allow-unauthenticated
+            --allow-unauthenticated \
+            --set-env-vars NODE_ENV=production,API_ENV=dev,SERVICE_NAME=kibo-api-dev \
+            --project ${{ secrets.GCP_PROJECT_ID }}
 
   deploy-web:
     if: contains(github.event.head_commit.message, '[deploy-web]') || contains(github.event.head_commit.message, '[deploy-all]')
     runs-on: ubuntu-latest
+    permissions:
+      contents: "read"
+      id-token: "write"
     steps:
-      - uses: actions/checkout@v4
-      - uses: google-github-actions/auth@v2
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v2
         with:
           credentials_json: "${{ secrets.GCP_SA_KEY }}"
-      - uses: google-github-actions/setup-gcloud@v2
 
-      - name: Build Web Image
-        run: |
-          gcloud builds submit --tag gcr.io/${{ secrets.GCP_PROJECT_ID }}/kibo-web-dev --file apps/web/Dockerfile .
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
 
-      - name: Deploy Web
+      - name: Build and Deploy Web
         run: |
           gcloud run deploy kibo-web-dev \
-            --image gcr.io/${{ secrets.GCP_PROJECT_ID }}/kibo-web-dev \
+            --source ./apps/web \
             --region us-east1 \
-            --allow-unauthenticated
+            --allow-unauthenticated \
+            --set-env-vars NODE_ENV=production,NEXT_PUBLIC_APP_ENV=dev,SERVICE_NAME=kibo-web-dev \
+            --project ${{ secrets.GCP_PROJECT_ID }}
+
+  deploy-all:
+    if: contains(github.event.head_commit.message, '[deploy-all]')
+    needs: [deploy-api, deploy-web]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Confirm full deployment
+        run: echo "✅ Both API and Web have been successfully deployed."
