@@ -73,7 +73,8 @@ jobs:
       - name: Build and Deploy API
         run: |
           gcloud run deploy kibo-api-dev \
-            --source ./apps/api \
+            --source . \
+            --dockerfile apps/api/Dockerfile \
             --region us-east1 \
             --allow-unauthenticated \
             --project $GCP_PROJECT_ID
@@ -107,7 +108,8 @@ jobs:
       - name: Build and Deploy Web
         run: |
           gcloud run deploy kibo-web-dev \
-            --source ./apps/web \
+            --source . \
+            --dockerfile apps/web/Dockerfile \
             --region us-east1 \
             --allow-unauthenticated \
             --project $GCP_PROJECT_ID
