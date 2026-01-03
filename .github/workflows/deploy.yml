@@ -4,50 +4,15 @@ on:
   push:
     branches:
       - main
-    paths:
-      - "apps/api/**"
-      - "apps/web/**"
-      - "packages/**"
-      - ".github/workflows/deploy.yml"
+      - dev
+  pull_request:
+    branches:
+      - main
+      - dev
+  workflow_dispatch:
 
 jobs:
   deploy-api:
-    if: contains(github.event.head_commit.message, '[deploy-api]') || contains(github.event.head_commit.message, '[deploy-all]')
-    runs-on: ubuntu-latest
-    permissions:
-      contents: "read"
-      id-token: "write"
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Google Auth
-        id: auth
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: "${{ secrets.GCP_SA_KEY }}"
-
-      - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
-
-      - name: Build and Deploy API
-        run: |
-          gcloud run deploy kibo-api-dev \
-            --source . \
-            --region us-east1 \
-            --allow-unauthenticated \
-            --set-env-vars NODE_ENV=production \
-            --project ${{ secrets.GCP_PROJECT_ID }}
-        # Note: The Dockerfile in root/apps/api handles the build.
-        # But 'gcloud run deploy --source .' uploads the whole root and uses the Dockerfile.
-        # We need to specify the Dockerfile path if using source deploy, OR build image first.
-        # "gcloud run deploy --source" builds remotely using Cloud Build.
-        # We need to tell it which Dockerfile to use.
-        # Flag --dockerfile apps/api/Dockerfile is supported in "gcloud builds submit" but for run deploy source it usually detects.
-        # Better approach: Submit build, then deploy image.
-
-  build-and-deploy-api-better:
     if: contains(github.event.head_commit.message, '[deploy-api]') || contains(github.event.head_commit.message, '[deploy-all]')
     runs-on: ubuntu-latest
     steps:
