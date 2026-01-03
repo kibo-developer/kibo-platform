@@ -17,88 +17,106 @@ on:
   workflow_dispatch:
 
 jobs:
-  deploy-api:
-    if: contains(github.event.head_commit.message, '[deploy-api]') || contains(github.event.head_commit.message, '[deploy-all]') || github.ref == 'refs/heads/dev'
+  validate-env:
+    name: Validate Environment Variables
     runs-on: ubuntu-latest
-    permissions:
-      contents: "read"
-      id-token: "write"
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      JWT_SECRET: ${{ secrets.JWT_SECRET }}
+      NEXTAUTH_URL: ${{ secrets.NEXTAUTH_URL }}
+      NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+      GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+      GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+      NODE_ENV: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Install Dependencies
+        run: |
+          npm install -g pnpm
+          pnpm install
+
+      - name: Run Validation Script
+        run: |
+          cd apps/api
+          pnpm run validate-env
+
+  deploy-api:
+    name: Deploy API to Cloud Run
+    needs: validate-env
+    if: contains(github.event.head_commit.message, '[deploy-api]') || contains(github.event.head_commit.message, '[deploy-all]')
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      JWT_SECRET: ${{ secrets.JWT_SECRET }}
+      GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+      GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+      NODE_ENV: production
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Google Auth
-        id: auth
         uses: google-github-actions/auth@v2
         with:
-          credentials_json: "${{ secrets.GCP_SA_KEY }}"
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
 
-      - name: Set up Cloud SDK
+      - name: Setup Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: 10
-
-      - name: Validate Environment Variables
-        if: hashFiles('apps/api/package.json') != ''
-        run: |
-          cd apps/api
-          pnpm install --frozen-lockfile
-          pnpm run validate-env
 
       - name: Build and Deploy API
         run: |
-          gcloud builds submit --tag gcr.io/${{ secrets.GCP_PROJECT_ID }}/kibo-api-dev --file apps/api/Dockerfile .
-
           gcloud run deploy kibo-api-dev \
-            --image gcr.io/${{ secrets.GCP_PROJECT_ID }}/kibo-api-dev \
+            --source ./apps/api \
             --region us-east1 \
             --allow-unauthenticated \
-            --set-env-vars NODE_ENV=production,API_ENV=dev,SERVICE_NAME=kibo-api-dev \
-            --project ${{ secrets.GCP_PROJECT_ID }}
+            --project $GCP_PROJECT_ID
 
   deploy-web:
-    if: contains(github.event.head_commit.message, '[deploy-web]') || contains(github.event.head_commit.message, '[deploy-all]') || github.ref == 'refs/heads/dev'
-    needs: [deploy-api]
+    name: Deploy Web App to Cloud Run
+    needs: validate-env
+    if: contains(github.event.head_commit.message, '[deploy-web]') || contains(github.event.head_commit.message, '[deploy-all]')
     runs-on: ubuntu-latest
-    permissions:
-      contents: "read"
-      id-token: "write"
+    env:
+      NEXTAUTH_URL: ${{ secrets.NEXTAUTH_URL }}
+      NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      JWT_SECRET: ${{ secrets.JWT_SECRET }}
+      GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+      GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: https://kibo-api-dev-362013941282.us-east1.run.app
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Google Auth
-        id: auth
         uses: google-github-actions/auth@v2
         with:
-          credentials_json: "${{ secrets.GCP_SA_KEY }}"
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
 
-      - name: Set up Cloud SDK
+      - name: Setup Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
       - name: Build and Deploy Web
         run: |
-          gcloud builds submit --tag gcr.io/${{ secrets.GCP_PROJECT_ID }}/kibo-web-dev --file apps/web/Dockerfile .
-
           gcloud run deploy kibo-web-dev \
-            --image gcr.io/${{ secrets.GCP_PROJECT_ID }}/kibo-web-dev \
+            --source ./apps/web \
             --region us-east1 \
             --allow-unauthenticated \
-            --set-env-vars NODE_ENV=production,NEXT_PUBLIC_APP_ENV=dev,SERVICE_NAME=kibo-web-dev \
-            --project ${{ secrets.GCP_PROJECT_ID }}
+            --project $GCP_PROJECT_ID
 
   deploy-all:
-    if: contains(github.event.head_commit.message, '[deploy-all]') || github.ref == 'refs/heads/dev'
+    name: Finalize Combined Deployments
     needs: [deploy-api, deploy-web]
     runs-on: ubuntu-latest
+    if: contains(github.event.head_commit.message, '[deploy-all]')
     steps:
-      - name: Confirm full deployment
-        run: echo "✅ Both API and Web have been successfully deployed."
+      - name: Summary
+        run: echo "✅ Both API and Web have been successfully deployed to Cloud Run."
