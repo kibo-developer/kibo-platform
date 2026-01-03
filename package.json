@@ -9,7 +9,8 @@
     "dev": "turbo run dev --parallel",
     "lint": "turbo lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
-    "db:deploy": "pnpm --filter=@kibo/database db:deploy"
+    "db:deploy": "pnpm --filter=@kibo/database db:deploy",
+    "validate-env": "pnpm --filter ./apps/api run validate-env"
   },
   "devDependencies": {
     "turbo": "latest",

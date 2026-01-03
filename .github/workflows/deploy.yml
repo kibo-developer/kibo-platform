@@ -36,6 +36,23 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 10
+
+      - name: Validate Environment Variables
+        if: hashFiles('apps/api/package.json') != ''
+        run: |
+          cd apps/api
+          pnpm install --frozen-lockfile
+          pnpm run validate-env
+
       - name: Build and Deploy API
         run: |
           gcloud builds submit --tag gcr.io/${{ secrets.GCP_PROJECT_ID }}/kibo-api-dev --file apps/api/Dockerfile .
