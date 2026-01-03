@@ -18,7 +18,7 @@ on:
 
 jobs:
   deploy-api:
-    if: contains(github.event.head_commit.message, '[deploy-api]') || contains(github.event.head_commit.message, '[deploy-all]')
+    if: contains(github.event.head_commit.message, '[deploy-api]') || contains(github.event.head_commit.message, '[deploy-all]') || github.ref == 'refs/heads/dev'
     runs-on: ubuntu-latest
     permissions:
       contents: "read"
@@ -38,15 +38,18 @@ jobs:
 
       - name: Build and Deploy API
         run: |
+          gcloud builds submit --tag gcr.io/${{ secrets.GCP_PROJECT_ID }}/kibo-api-dev --file apps/api/Dockerfile .
+
           gcloud run deploy kibo-api-dev \
-            --source ./apps/api \
+            --image gcr.io/${{ secrets.GCP_PROJECT_ID }}/kibo-api-dev \
             --region us-east1 \
             --allow-unauthenticated \
             --set-env-vars NODE_ENV=production,API_ENV=dev,SERVICE_NAME=kibo-api-dev \
             --project ${{ secrets.GCP_PROJECT_ID }}
 
   deploy-web:
-    if: contains(github.event.head_commit.message, '[deploy-web]') || contains(github.event.head_commit.message, '[deploy-all]')
+    if: contains(github.event.head_commit.message, '[deploy-web]') || contains(github.event.head_commit.message, '[deploy-all]') || github.ref == 'refs/heads/dev'
+    needs: [deploy-api]
     runs-on: ubuntu-latest
     permissions:
       contents: "read"
@@ -66,15 +69,17 @@ jobs:
 
       - name: Build and Deploy Web
         run: |
+          gcloud builds submit --tag gcr.io/${{ secrets.GCP_PROJECT_ID }}/kibo-web-dev --file apps/web/Dockerfile .
+
           gcloud run deploy kibo-web-dev \
-            --source ./apps/web \
+            --image gcr.io/${{ secrets.GCP_PROJECT_ID }}/kibo-web-dev \
             --region us-east1 \
             --allow-unauthenticated \
             --set-env-vars NODE_ENV=production,NEXT_PUBLIC_APP_ENV=dev,SERVICE_NAME=kibo-web-dev \
             --project ${{ secrets.GCP_PROJECT_ID }}
 
   deploy-all:
-    if: contains(github.event.head_commit.message, '[deploy-all]')
+    if: contains(github.event.head_commit.message, '[deploy-all]') || github.ref == 'refs/heads/dev'
     needs: [deploy-api, deploy-web]
     runs-on: ubuntu-latest
     steps:
