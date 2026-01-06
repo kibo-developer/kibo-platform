@@ -1,0 +1,73 @@
+steps:
+  # Build API Image
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      [
+        "build",
+        "-f",
+        "apps/api/Dockerfile",
+        "-t",
+        "gcr.io/$PROJECT_ID/kibo-api",
+        ".",
+      ]
+    id: "Build API"
+
+  # Build Web Image
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      [
+        "build",
+        "-f",
+        "apps/web/Dockerfile",
+        "-t",
+        "gcr.io/$PROJECT_ID/kibo-web",
+        ".",
+      ]
+    id: "Build Web"
+    waitFor: ["-"] # Run in parallel with API build
+
+  # Push API Image
+  - name: "gcr.io/cloud-builders/docker"
+    args: ["push", "gcr.io/$PROJECT_ID/kibo-api"]
+    id: "Push API"
+    waitFor: ["Build API"]
+
+  # Push Web Image
+  - name: "gcr.io/cloud-builders/docker"
+    args: ["push", "gcr.io/$PROJECT_ID/kibo-web"]
+    id: "Push Web"
+    waitFor: ["Build Web"]
+
+  # Deploy API to Cloud Run
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    entrypoint: gcloud
+    args:
+      - "run"
+      - "deploy"
+      - "kibo-api-dev"
+      - "--image"
+      - "gcr.io/$PROJECT_ID/kibo-api"
+      - "--region"
+      - "us-central1"
+    id: "Deploy API"
+    waitFor: ["Push API"]
+
+  # Deploy Web to Cloud Run
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    entrypoint: gcloud
+    args:
+      - "run"
+      - "deploy"
+      - "kibo-web-dev"
+      - "--image"
+      - "gcr.io/$PROJECT_ID/kibo-web"
+      - "--region"
+      - "us-central1"
+    id: "Deploy Web"
+    waitFor: ["Push Web"]
+
+images:
+  - "gcr.io/$PROJECT_ID/kibo-api"
+  - "gcr.io/$PROJECT_ID/kibo-web"
+
+timeout: "1200s"
