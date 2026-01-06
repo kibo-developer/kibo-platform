@@ -1,6 +1,6 @@
 FROM node:20-alpine AS base
 
-# Install pnpm
+# Install pnpm correctly
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable && corepack prepare pnpm@10.25.0 --activate
@@ -11,7 +11,12 @@ RUN apk update
 
 WORKDIR /app
 RUN npm install turbo --global
+
+# Explicitly copy config files first
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml turbo.json ./
+
 COPY . .
+
 RUN turbo prune --scope=@kibo/web --docker
 
 FROM base AS installer
@@ -42,9 +47,6 @@ RUN adduser --system --uid 1001 nextjs
 USER nextjs
 
 COPY --from=installer /app/apps/web/public ./apps/web/public
-
-# Automatically leverage output traces to reduce image size
-# https://nextjs.org/docs/advanced-features/output-file-tracing
 COPY --from=installer --chown=nextjs:nodejs /app/apps/web/.next/standalone ./
 COPY --from=installer --chown=nextjs:nodejs /app/apps/web/.next/static ./apps/web/.next/static
 

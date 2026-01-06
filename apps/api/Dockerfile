@@ -13,6 +13,10 @@ RUN apk update
 # Set working directory
 WORKDIR /app
 RUN npm install turbo --global
+
+# Explicitly copy config files first to ensure they exist and break cache if changed
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml turbo.json ./
+
 COPY . .
 
 # Prune the workspace for the api
@@ -34,8 +38,7 @@ RUN pnpm install
 # Build the project and its dependencies
 COPY --from=builder /app/out/full/ .
 
-# Generate Prisma Client
-# We explicitly run this here to ensure the client is generated with the correct binary targets for the OS
+# Generate Prisma Client (with explicit path as failsafe)
 RUN pnpm --filter @kibo/database exec prisma generate
 
 RUN pnpm turbo build --filter=@kibo/api...
