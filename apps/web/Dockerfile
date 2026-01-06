@@ -1,6 +1,6 @@
 FROM node:20-alpine AS base
 
-# Install pnpm correctly
+# Install pnpm
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable && corepack prepare pnpm@10.25.0 --activate
@@ -11,12 +11,9 @@ RUN apk update
 
 WORKDIR /app
 RUN npm install turbo --global
-
-# Explicitly copy config files first
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml turbo.json ./
-
 COPY . .
 
+# Prune the workspace for the web
 RUN turbo prune --scope=@kibo/web --docker
 
 FROM base AS installer
@@ -24,14 +21,14 @@ RUN apk add --no-cache libc6-compat
 RUN apk update
 WORKDIR /app
 
-# First install dependencies (as they change less often)
+# First install dependencies
 COPY .gitignore .gitignore
 COPY --from=builder /app/out/json/ .
 COPY --from=builder /app/out/pnpm-lock.yaml ./pnpm-lock.yaml
 COPY --from=builder /app/out/pnpm-workspace.yaml ./pnpm-workspace.yaml
 RUN pnpm install
 
-# Build the project and its dependencies
+# Build the project
 COPY --from=builder /app/out/full/ .
 
 # Generate Prisma Client
