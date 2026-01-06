@@ -1,46 +1,60 @@
-FROM node:20-alpine AS base
+# Build stage
+FROM node:20-alpine AS builder
 
-FROM base AS builder
-RUN apk add --no-cache libc6-compat
-WORKDIR /app
-# Set up pnpm and turbo
-RUN npm install -g pnpm turbo
-COPY . .
-RUN turbo prune --scope=@kibo/web --docker
-
-# Installer stage
-FROM base AS installer
-RUN apk add --no-cache libc6-compat
-WORKDIR /app
-RUN npm install -g pnpm
-
-# First install the dependencies (as they change less often)
-COPY .gitignore .gitignore
-COPY --from=builder /app/out/json/ .
-COPY --from=builder /app/out/pnpm-lock.yaml ./pnpm-lock.yaml
-RUN pnpm install
-
-# Build the project
-COPY --from=builder /app/out/full/ .
-# Generate Prisma Client (needed if web imports types from database)
-RUN npx prisma generate --schema=packages/database/prisma/schema.prisma
-RUN pnpm turbo run build --filter=@kibo/web...
-
-FROM base AS runner
 WORKDIR /app
 
-# Don't run production as root
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
-USER nextjs
+# Install pnpm
+RUN npm install -g pnpm@10.25.0
 
-COPY --from=installer /app/apps/web/next.config.ts .
-COPY --from=installer /app/apps/web/package.json .
+# Copy package files
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY apps/web/package.json ./apps/web/
+COPY packages/database/package.json ./packages/database/
 
-# Automatically leverage output traces to reduce image size
-# https://nextjs.org/docs/advanced-features/output-file-tracing
-COPY --from=installer --chown=nextjs:nodejs /app/apps/web/.next/standalone ./
-COPY --from=installer --chown=nextjs:nodejs /app/apps/web/.next/static ./apps/web/.next/static
-COPY --from=installer --chown=nextjs:nodejs /app/apps/web/public ./apps/web/public
+# Install dependencies
+RUN pnpm install --frozen-lockfile
 
+# Copy source code
+COPY apps/web ./apps/web
+COPY packages ./packages
+
+# Generate Prisma Client
+RUN pnpm --filter @kibo/database exec prisma generate
+
+# Build the web app
+RUN pnpm --filter @kibo/web build
+
+# Production stage
+FROM node:20-alpine AS runner
+
+WORKDIR /app
+
+# Install pnpm
+RUN npm install -g pnpm@10.25.0
+
+# Copy package files
+COPY package.json pnpm-workspace.yaml ./
+COPY apps/web/package.json ./apps/web/
+COPY packages/database/package.json ./packages/database/
+
+# Install production dependencies
+RUN pnpm install --frozen-lockfile --prod
+
+# Copy built Next.js application
+COPY --from=builder /app/apps/web/.next/standalone ./
+COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
+COPY --from=builder /app/apps/web/public ./apps/web/public
+COPY --from=builder /app/packages ./packages
+
+# Generate Prisma Client in production
+RUN pnpm --filter @kibo/database exec prisma generate
+
+# Set environment
+ENV NODE_ENV=production
+ENV PORT=8080
+
+# Expose port
+EXPOSE 8080
+
+# Start the application
 CMD ["node", "apps/web/server.js"]
