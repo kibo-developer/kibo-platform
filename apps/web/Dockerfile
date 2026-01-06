@@ -1,60 +1,57 @@
-# Build stage
-FROM node:20-alpine AS builder
-
-WORKDIR /app
+FROM node:20-alpine AS base
 
 # Install pnpm
-RUN npm install -g pnpm@10.25.0
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN corepack enable && corepack prepare pnpm@10.25.0 --activate
 
-# Copy package files
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
-COPY apps/web/package.json ./apps/web/
-COPY packages/database/package.json ./packages/database/
+FROM base AS builder
+RUN apk add --no-cache libc6-compat
+RUN apk update
 
-# Install dependencies
-RUN pnpm install --frozen-lockfile
+WORKDIR /app
+RUN npm install turbo --global
+COPY . .
+RUN turbo prune --scope=@kibo/web --docker
 
-# Copy source code
-COPY apps/web ./apps/web
-COPY packages ./packages
+FROM base AS installer
+RUN apk add --no-cache libc6-compat
+RUN apk update
+WORKDIR /app
+
+# First install dependencies (as they change less often)
+COPY .gitignore .gitignore
+COPY --from=builder /app/out/json/ .
+COPY --from=builder /app/out/pnpm-lock.yaml ./pnpm-lock.yaml
+COPY --from=builder /app/out/pnpm-workspace.yaml ./pnpm-workspace.yaml
+RUN pnpm install
+
+# Build the project and its dependencies
+COPY --from=builder /app/out/full/ .
 
 # Generate Prisma Client
 RUN pnpm --filter @kibo/database exec prisma generate
 
-# Build the web app
-RUN pnpm --filter @kibo/web build
+RUN pnpm turbo build --filter=@kibo/web...
 
-# Production stage
-FROM node:20-alpine AS runner
-
+FROM base AS runner
 WORKDIR /app
 
-# Install pnpm
-RUN npm install -g pnpm@10.25.0
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nextjs
+USER nextjs
 
-# Copy package files
-COPY package.json pnpm-workspace.yaml ./
-COPY apps/web/package.json ./apps/web/
-COPY packages/database/package.json ./packages/database/
+COPY --from=installer /app/apps/web/public ./apps/web/public
 
-# Install production dependencies
-RUN pnpm install --frozen-lockfile --prod
+# Automatically leverage output traces to reduce image size
+# https://nextjs.org/docs/advanced-features/output-file-tracing
+COPY --from=installer --chown=nextjs:nodejs /app/apps/web/.next/standalone ./
+COPY --from=installer --chown=nextjs:nodejs /app/apps/web/.next/static ./apps/web/.next/static
 
-# Copy built Next.js application
-COPY --from=builder /app/apps/web/.next/standalone ./
-COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
-COPY --from=builder /app/apps/web/public ./apps/web/public
-COPY --from=builder /app/packages ./packages
-
-# Generate Prisma Client in production
-RUN pnpm --filter @kibo/database exec prisma generate
-
-# Set environment
 ENV NODE_ENV=production
 ENV PORT=8080
+ENV HOSTNAME="0.0.0.0"
 
-# Expose port
 EXPOSE 8080
 
-# Start the application
 CMD ["node", "apps/web/server.js"]

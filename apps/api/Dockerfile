@@ -1,60 +1,53 @@
-# Build stage
-FROM node:20-alpine AS builder
+FROM node:20-alpine AS base
 
+# Install pnpm correctly
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN corepack enable && corepack prepare pnpm@10.25.0 --activate
+
+FROM base AS builder
+# Check https://github.com/nodejs/docker-node/tree/b4117f9333da4138b03a546ec926ef50a31506c3#nodealpine to understand why libc6-compat might be needed.
+RUN apk add --no-cache libc6-compat
+RUN apk update
+
+# Set working directory
+WORKDIR /app
+RUN npm install turbo --global
+COPY . .
+
+# Prune the workspace for the api
+RUN turbo prune --scope=@kibo/api --docker
+
+# Add lockfile and package.json's of isolated subworkspace
+FROM base AS installer
+RUN apk add --no-cache libc6-compat
+RUN apk update
 WORKDIR /app
 
-# Install pnpm
-RUN npm install -g pnpm@10.25.0
+# First install dependencies (as they change less often)
+COPY .gitignore .gitignore
+COPY --from=builder /app/out/json/ .
+COPY --from=builder /app/out/pnpm-lock.yaml ./pnpm-lock.yaml
+COPY --from=builder /app/out/pnpm-workspace.yaml ./pnpm-workspace.yaml
+RUN pnpm install
 
-# Copy package files
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
-COPY apps/api/package.json ./apps/api/
-COPY packages/database/package.json ./packages/database/
-
-# Install dependencies
-RUN pnpm install --frozen-lockfile
-
-# Copy source code
-COPY apps/api ./apps/api
-COPY packages ./packages
+# Build the project and its dependencies
+COPY --from=builder /app/out/full/ .
 
 # Generate Prisma Client
+# We explicitly run this here to ensure the client is generated with the correct binary targets for the OS
 RUN pnpm --filter @kibo/database exec prisma generate
 
-# Build the API
-RUN pnpm --filter @kibo/api build
+RUN pnpm turbo build --filter=@kibo/api...
 
-# Production stage
-FROM node:20-alpine AS runner
-
+FROM base AS runner
 WORKDIR /app
 
-# Install pnpm
-RUN npm install -g pnpm@10.25.0
+# Don't run production as root
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nestjs
+USER nestjs
 
-# Copy package files
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
-COPY apps/api/package.json ./apps/api/
-COPY packages/database/package.json ./packages/database/
+COPY --from=installer /app .
 
-# Install production dependencies only
-RUN pnpm install --frozen-lockfile --prod
-
-# Copy built application and necessary files
-COPY --from=builder /app/apps/api/dist ./apps/api/dist
-COPY --from=builder /app/packages ./packages
-COPY --from=builder /app/node_modules/.pnpm ./node_modules/.pnpm
-COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
-COPY --from=builder /app/node_modules/.bin ./node_modules/.bin
-
-# Generate Prisma Client in production
-RUN pnpm --filter @kibo/database exec prisma generate
-
-# Set environment
-ENV NODE_ENV=production
-
-# Expose port
-EXPOSE 8080
-
-# Start the application
 CMD ["node", "apps/api/dist/main.js"]
