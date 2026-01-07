@@ -7,7 +7,7 @@ steps:
         "-f",
         "apps/api/Dockerfile",
         "-t",
-        "gcr.io/$PROJECT_ID/kibo-api",
+        "us-east1-docker.pkg.dev/$PROJECT_ID/kibo-api/api:latest",
         ".",
       ]
     id: "Build API"
@@ -20,7 +20,7 @@ steps:
         "-f",
         "apps/web/Dockerfile",
         "-t",
-        "gcr.io/$PROJECT_ID/kibo-web",
+        "us-east1-docker.pkg.dev/$PROJECT_ID/kibo-web/web:latest",
         ".",
       ]
     id: "Build Web"
@@ -28,13 +28,13 @@ steps:
 
   # Push API Image
   - name: "gcr.io/cloud-builders/docker"
-    args: ["push", "gcr.io/$PROJECT_ID/kibo-api"]
+    args: ["push", "us-east1-docker.pkg.dev/$PROJECT_ID/kibo-api/api:latest"]
     id: "Push API"
     waitFor: ["Build API"]
 
   # Push Web Image
   - name: "gcr.io/cloud-builders/docker"
-    args: ["push", "gcr.io/$PROJECT_ID/kibo-web"]
+    args: ["push", "us-east1-docker.pkg.dev/$PROJECT_ID/kibo-web/web:latest"]
     id: "Push Web"
     waitFor: ["Build Web"]
 
@@ -46,9 +46,10 @@ steps:
       - "deploy"
       - "kibo-api-dev"
       - "--image"
-      - "gcr.io/$PROJECT_ID/kibo-api"
+      - "us-east1-docker.pkg.dev/$PROJECT_ID/kibo-api/api:latest"
       - "--region"
-      - "us-central1"
+      - "us-east1"
+      - "--allow-unauthenticated"
     id: "Deploy API"
     waitFor: ["Push API"]
 
@@ -60,15 +61,16 @@ steps:
       - "deploy"
       - "kibo-web-dev"
       - "--image"
-      - "gcr.io/$PROJECT_ID/kibo-web"
+      - "us-east1-docker.pkg.dev/$PROJECT_ID/kibo-web/web:latest"
       - "--region"
-      - "us-central1"
+      - "us-east1"
+      - "--allow-unauthenticated"
     id: "Deploy Web"
     waitFor: ["Push Web"]
 
 images:
-  - "gcr.io/$PROJECT_ID/kibo-api"
-  - "gcr.io/$PROJECT_ID/kibo-web"
+  - "us-east1-docker.pkg.dev/$PROJECT_ID/kibo-api/api:latest"
+  - "us-east1-docker.pkg.dev/$PROJECT_ID/kibo-web/web:latest"
 
 timeout: "1200s"
 
