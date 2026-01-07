@@ -17,7 +17,7 @@ COPY . .
 RUN turbo prune --scope=@kibo/web --docker
 
 FROM base AS installer
-RUN apk add --no-cache libc6-compat
+RUN apk add --no-cache libc6-compat openssl
 RUN apk update
 WORKDIR /app
 
@@ -38,6 +38,9 @@ RUN pnpm turbo build --filter=@kibo/web...
 
 FROM base AS runner
 WORKDIR /app
+
+# Install OpenSSL for Prisma Runtime (Critical for Alpine)
+RUN apk add --no-cache openssl
 
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
