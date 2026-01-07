@@ -10,11 +10,13 @@ RUN apk add --no-cache libc6-compat
 RUN apk update
 
 WORKDIR /app
-RUN npm install turbo --global
+# Install turbo locally in the root as a dev dependency (respecting lockfile)
+RUN pnpm install turbo --workspace-root --config.ignore-scripts=true
 COPY . .
 
 # Prune the workspace for the web
-RUN turbo prune --scope=@kibo/web --docker
+# Use the local turbo binary
+RUN pnpm exec turbo prune --scope=@kibo/web --docker
 
 FROM base AS installer
 RUN apk add --no-cache libc6-compat openssl
@@ -26,7 +28,7 @@ COPY .gitignore .gitignore
 COPY --from=builder /app/out/json/ .
 COPY --from=builder /app/out/pnpm-lock.yaml ./pnpm-lock.yaml
 COPY --from=builder /app/out/pnpm-workspace.yaml ./pnpm-workspace.yaml
-RUN pnpm install
+RUN pnpm install --frozen-lockfile
 
 # Build the project
 COPY --from=builder /app/out/full/ .
@@ -34,7 +36,10 @@ COPY --from=builder /app/out/full/ .
 # Generate Prisma Client
 RUN pnpm --filter @kibo/database exec prisma generate
 
-RUN pnpm turbo build --filter=@kibo/web...
+# Build Web and verify output
+RUN pnpm exec turbo build --filter=@kibo/web...
+# Verify output for debugging (optional for web since next build is usually reliable, but good for consistency)
+RUN echo "listing web .next contents:" && ls -R apps/web/.next 
 
 FROM base AS runner
 WORKDIR /app
