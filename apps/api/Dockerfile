@@ -10,11 +10,13 @@ RUN apk add --no-cache libc6-compat
 RUN apk update
 
 WORKDIR /app
-RUN npm install turbo --global
+# Install turbo locally in the root as a dev dependency (respecting lockfile)
+RUN pnpm install turbo --workspace-root --config.ignore-scripts=true
 COPY . .
 
 # Prune the workspace for the api
-RUN turbo prune --scope=@kibo/api --docker
+# Use the local turbo binary
+RUN pnpm exec turbo prune --scope=@kibo/api --docker
 
 FROM base AS installer
 RUN apk add --no-cache libc6-compat openssl
@@ -26,7 +28,7 @@ COPY .gitignore .gitignore
 COPY --from=builder /app/out/json/ .
 COPY --from=builder /app/out/pnpm-lock.yaml ./pnpm-lock.yaml
 COPY --from=builder /app/out/pnpm-workspace.yaml ./pnpm-workspace.yaml
-RUN pnpm install
+RUN pnpm install --frozen-lockfile
 
 # Build the project
 COPY --from=builder /app/out/full/ .
@@ -35,10 +37,9 @@ COPY --from=builder /app/out/full/ .
 # We explicitly specify binary targets via env var to be safe, though schema should handle it
 RUN pnpm --filter @kibo/database exec prisma generate
 
-RUN pnpm turbo build --filter=@kibo/api...
-
-# Debug: Verify that the build output exists
-RUN ls -la apps/api/dist
+# Build API and verify output immediately
+RUN pnpm exec turbo build --filter=@kibo/api...
+RUN echo "listing api dist contents:" && ls -R apps/api/dist
 
 FROM base AS runner
 WORKDIR /app
@@ -50,9 +51,11 @@ RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nestjs
 USER nestjs
 
-# Copy the entire app from installer (simple but effective for monorepo)
-# Ensure we have the dist folder
-COPY --from=installer /app .
+# Selective copy for production - Robust & Cleaner
+COPY --from=installer /app/package.json ./package.json
+COPY --from=installer /app/node_modules ./node_modules
+COPY --from=installer /app/apps/api/package.json ./apps/api/package.json
+COPY --from=installer /app/apps/api/dist ./apps/api/dist
 
 # Explicitly verify main.js exists in the final image
 RUN ls -la apps/api/dist/main.js
