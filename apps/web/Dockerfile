@@ -10,9 +10,18 @@ RUN apk add --no-cache libc6-compat
 RUN apk update
 
 WORKDIR /app
-# Install turbo locally in the root as a dev dependency (respecting lockfile)
-RUN pnpm install turbo --workspace-root --config.ignore-scripts=true
 COPY . .
+
+# Validate workspace context
+RUN echo "🔍 Validating workspace..." && \
+    ls -la && \
+    test -f pnpm-lock.yaml && \
+    test -f pnpm-workspace.yaml && \
+    echo "✅ Workspace valid." || \
+    (echo "❌ Error: Workspace files missing!" && exit 1)
+
+# Install turbo locally in the root as a dev dependency (respecting lockfile)
+RUN pnpm install turbo --workspace-root --ignore-scripts --frozen-lockfile
 
 # Prune the workspace for the web
 # Use the local turbo binary
@@ -33,13 +42,23 @@ RUN pnpm install --frozen-lockfile
 # Build the project
 COPY --from=builder /app/out/full/ .
 
+# Log versions for debugging
+RUN echo "🔧 Environment Versions:" && \
+    echo "PNPM:" && pnpm -v && \
+    echo "Turbo:" && npx turbo --version
+
 # Generate Prisma Client
 RUN pnpm --filter @kibo/database exec prisma generate
 
 # Build Web and verify output
 RUN pnpm exec turbo build --filter=@kibo/web...
-# Verify output for debugging (optional for web since next build is usually reliable, but good for consistency)
-RUN echo "listing web .next contents:" && ls -R apps/web/.next 
+
+# Verify output for debugging
+RUN echo "🔍 Verifying Next.js build output..." && \
+    ls -R apps/web/.next && \
+    test -d apps/web/.next && \
+    echo "✅ Web Build verified." || \
+    (echo "❌ Error: .next folder missing!" && exit 1) 
 
 FROM base AS runner
 WORKDIR /app
