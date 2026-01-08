@@ -20,8 +20,8 @@ RUN echo "🔍 Validating workspace..." && \
     echo "✅ Workspace valid." || \
     (echo "❌ Error: Workspace files (pnpm-lock.yaml, pnpm-workspace.yaml) missing!" && exit 1)
 
-# Install turbo locally in the root as a dev dependency (respecting lockfile)
-RUN pnpm install turbo --workspace-root --ignore-scripts --frozen-lockfile
+# Install dependencies (incorporating turbo) respecting lockfile
+RUN pnpm install --ignore-scripts --frozen-lockfile
 
 # Prune the workspace for the api
 # Use the local turbo binary
