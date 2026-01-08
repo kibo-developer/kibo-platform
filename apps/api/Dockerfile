@@ -10,9 +10,18 @@ RUN apk add --no-cache libc6-compat
 RUN apk update
 
 WORKDIR /app
-# Install turbo locally in the root as a dev dependency (respecting lockfile)
-RUN pnpm install turbo --workspace-root --config.ignore-scripts=true
 COPY . .
+
+# Validate workspace context
+RUN echo "🔍 Validating workspace..." && \
+    ls -la && \
+    test -f pnpm-lock.yaml && \
+    test -f pnpm-workspace.yaml && \
+    echo "✅ Workspace valid." || \
+    (echo "❌ Error: Workspace files (pnpm-lock.yaml, pnpm-workspace.yaml) missing!" && exit 1)
+
+# Install turbo locally in the root as a dev dependency (respecting lockfile)
+RUN pnpm install turbo --workspace-root --ignore-scripts --frozen-lockfile
 
 # Prune the workspace for the api
 # Use the local turbo binary
@@ -33,13 +42,24 @@ RUN pnpm install --frozen-lockfile
 # Build the project
 COPY --from=builder /app/out/full/ .
 
+# Log versions for debugging
+RUN echo "🔧 Environment Versions:" && \
+    echo "PNPM:" && pnpm -v && \
+    echo "Turbo:" && npx turbo --version
+
 # Generate Prisma Client
 # We explicitly specify binary targets via env var to be safe, though schema should handle it
 RUN pnpm --filter @kibo/database exec prisma generate
 
 # Build API and verify output immediately
 RUN pnpm exec turbo build --filter=@kibo/api...
-RUN echo "listing api dist contents:" && ls -R apps/api/dist
+
+# Verify build output integrity
+RUN echo "🔍 Verifying build output..." && \
+    ls -R apps/api/dist && \
+    test -f apps/api/dist/main.js && \
+    echo "✅ API Build verified." || \
+    (echo "❌ Error: main.js missing in apps/api/dist!" && exit 1)
 
 FROM base AS runner
 WORKDIR /app
