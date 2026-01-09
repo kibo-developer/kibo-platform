@@ -21,7 +21,7 @@ RUN echo "🔍 Validating workspace..." && \
     (echo "❌ Error: Workspace files missing!" && exit 1)
 
 # Install dependencies (incorporating turbo) respecting lockfile
-RUN pnpm install --ignore-scripts --frozen-lockfile
+RUN pnpm install --ignore-scripts --frozen-lockfile --prefer-offline
 
 # Prune the workspace for the web
 # Use the local turbo binary
@@ -37,7 +37,7 @@ COPY .gitignore .gitignore
 COPY --from=builder /app/out/json/ .
 COPY --from=builder /app/out/pnpm-lock.yaml ./pnpm-lock.yaml
 COPY --from=builder /app/out/pnpm-workspace.yaml ./pnpm-workspace.yaml
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile --prefer-offline
 
 # Build the project
 COPY --from=builder /app/out/full/ .
@@ -46,6 +46,18 @@ COPY --from=builder /app/out/full/ .
 RUN echo "🔧 Environment Versions:" && \
     echo "PNPM:" && pnpm -v && \
     echo "Turbo:" && npx turbo --version
+
+# Set Production Environment for Build
+ENV NODE_ENV=production
+
+# Validate Build Args
+ARG NEXT_PUBLIC_API_URL
+RUN test -n "$NEXT_PUBLIC_API_URL" || (echo "❌ Error: NEXT_PUBLIC_API_URL build argument is missing!" && exit 1)
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+
+ARG APP_ENV
+RUN test -n "$APP_ENV" || (echo "❌ Error: APP_ENV build argument is missing!" && exit 1)
+ENV APP_ENV=$APP_ENV
 
 # Generate Prisma Client
 RUN pnpm --filter @kibo/database exec prisma generate
@@ -64,7 +76,7 @@ FROM base AS runner
 WORKDIR /app
 
 # Install OpenSSL for Prisma Runtime (Critical for Alpine)
-RUN apk add --no-cache openssl
+RUN apk add --no-cache openssl wget
 
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
@@ -77,6 +89,10 @@ COPY --from=installer --chown=nextjs:nodejs /app/apps/web/.next/static ./apps/we
 ENV NODE_ENV=production
 ENV PORT=8080
 ENV HOSTNAME="0.0.0.0"
+
+# Native Healthcheck
+HEALTHCHECK --interval=30s --timeout=3s \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/ || exit 1
 
 EXPOSE 8080
 

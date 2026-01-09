@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import "./src/env"; // Trigger validation
 
 const nextConfig: NextConfig = {
   output: 'standalone',
