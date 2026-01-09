@@ -59,6 +59,12 @@ ARG APP_ENV
 RUN test -n "$APP_ENV" || (echo "❌ Error: APP_ENV build argument is missing!" && exit 1)
 ENV APP_ENV=$APP_ENV
 
+ARG REGION
+ARG SERVICE_NAME
+
+# Optional: Log checks
+RUN echo "Building for Service: $SERVICE_NAME in Region: $REGION"
+
 # Generate Prisma Client
 RUN pnpm --filter @kibo/database exec prisma generate
 
