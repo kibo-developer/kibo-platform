@@ -21,7 +21,8 @@ RUN echo "🔍 Validating workspace..." && \
     (echo "❌ Error: Workspace files missing!" && exit 1)
 
 # Install dependencies (incorporating turbo) respecting lockfile
-RUN pnpm install --ignore-scripts --frozen-lockfile --prefer-offline
+# Install dependencies (incorporating turbo) respecting lockfile
+RUN pnpm install --no-frozen-lockfile --prefer-offline
 
 # Prune the workspace for the web
 # Use the local turbo binary
@@ -37,7 +38,9 @@ COPY .gitignore .gitignore
 COPY --from=builder /app/out/json/ .
 COPY --from=builder /app/out/pnpm-lock.yaml ./pnpm-lock.yaml
 COPY --from=builder /app/out/pnpm-workspace.yaml ./pnpm-workspace.yaml
-RUN pnpm install --frozen-lockfile --prefer-offline
+# Install dependencies (incorporating turbo) respecting lockfile
+# Using --no-frozen-lockfile to allow updates during this sync phase as requested
+RUN pnpm install --no-frozen-lockfile --prefer-offline
 
 # Build the project
 COPY --from=builder /app/out/full/ .

@@ -158,7 +158,7 @@ timeout: "1200s"
 substitutions:
   _APP_ENV: "development"
   _REGION: "us-east1"
-  _REPO_NAME: "kibo-platform" # Default fallback
+  _REPO_NAME: "cloud-run-source-deploy" # Default fallback
   _API_SERVICE_NAME: "" # Empty by default
   _WEB_SERVICE_NAME: "" # Empty by default
   _NEXT_PUBLIC_API_URL: ""
