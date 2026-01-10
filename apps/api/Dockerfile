@@ -96,9 +96,12 @@ COPY --from=installer /app/apps/api/dist ./apps/api/dist
 RUN ls -la apps/api/dist/main.js
 
 ENV NODE_ENV=production
+ENV PORT=8080
 
 # Native Healthcheck
-HEALTHCHECK --interval=30s --timeout=3s \
+HEALTHCHECK --interval=30s --timeout=5s \
     CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
+
+EXPOSE 8080
 
 CMD ["node", "apps/api/dist/main.js"]
