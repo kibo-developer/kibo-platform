@@ -91,6 +91,7 @@ USER nestjs
 COPY --from=installer /app/package.json ./package.json
 COPY --from=installer /app/node_modules ./node_modules
 COPY --from=installer /app/apps/api/package.json ./apps/api/package.json
+COPY --from=installer /app/apps/api/node_modules ./apps/api/node_modules
 COPY --from=installer /app/apps/api/dist ./apps/api/dist
 
 # Explicitly verify main.js exists in the final image
