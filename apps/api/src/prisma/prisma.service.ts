@@ -6,7 +6,11 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     private readonly logger = new Logger(PrismaService.name);
 
     async onModuleInit() {
-        await this.connectWithRetry();
+        try {
+            await this.connectWithRetry();
+        } catch (error) {
+            this.logger.error(`Database connection failed on startup: ${error.message}. API will continue but database will be unavailable until retry succeeds.`);
+        }
     }
 
     async onModuleDestroy() {
