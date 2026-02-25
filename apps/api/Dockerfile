@@ -1,4 +1,5 @@
 FROM node:20-alpine AS base
+ENV PRISMA_SKIP_POSTINSTALL=1
 
 # Install pnpm
 ENV PNPM_HOME="/pnpm"
