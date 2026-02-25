@@ -1,0 +1,9 @@
+node_modules
+.git
+.turbo
+dist
+.next
+.DS_Store
+*.md
+.env*
+!packages/database/prisma/schema.prisma

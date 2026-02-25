@@ -1,0 +1,168 @@
+steps:
+  # 0. Validate Environment Context
+  - name: "bash"
+    args:
+      - "-c"
+      - |
+        echo "🔍 Validating Trigger Context..."
+        if [ -z "$_APP_ENV" ]; then
+          echo "❌ Missing _APP_ENV"
+          exit 1
+        fi
+
+        # Check if at least one service target is defined
+        if [ -z "$_API_SERVICE_NAME" ] && [ -z "$_WEB_SERVICE_NAME" ]; then
+          echo "❌ Error: Neither _API_SERVICE_NAME nor _WEB_SERVICE_NAME is defined. Nothing to build."
+          exit 1
+        fi
+
+        # Conditional Validations
+        if [ -n "$_API_SERVICE_NAME" ]; then
+           echo "🔹 Targeted for API Build: $_API_SERVICE_NAME"
+        fi
+
+        if [ -n "$_WEB_SERVICE_NAME" ]; then
+           echo "🔹 Targeted for Web Build: $_WEB_SERVICE_NAME"
+           if [ -z "$_NEXT_PUBLIC_API_URL" ]; then
+             echo "❌ Missing _NEXT_PUBLIC_API_URL for Web build."
+             exit 1
+           fi
+        fi
+
+        echo "✅ Validation Complete."
+    id: "Validate Context"
+
+  # -------------------------------------------------------------------------
+  # API PIPELINE
+  # -------------------------------------------------------------------------
+
+  # 1. Build API
+  - name: "gcr.io/cloud-builders/docker"
+    entrypoint: "bash"
+    args:
+      - "-c"
+      - |
+        if [ -n "$_API_SERVICE_NAME" ]; then
+          echo "🏗️ Building API..."
+          docker build \
+            -f apps/api/Dockerfile \
+            -t us-east1-docker.pkg.dev/$PROJECT_ID/$_REPO_NAME/api:latest \
+            --build-arg APP_ENV=${_APP_ENV} \
+            --build-arg REGION=${_REGION} \
+            --build-arg SERVICE_NAME=${_API_SERVICE_NAME} \
+            .
+        else
+          echo "⏭️ Skipping API Build (No service name defined)"
+        fi
+    id: "Build API"
+    waitFor: ["Validate Context"]
+
+  # 2. Push API
+  - name: "gcr.io/cloud-builders/docker"
+    entrypoint: "bash"
+    args:
+      - "-c"
+      - |
+        if [ -n "$_API_SERVICE_NAME" ]; then
+          echo "⬆️ Pushing API Image..."
+          docker push us-east1-docker.pkg.dev/$PROJECT_ID/$_REPO_NAME/api:latest
+        else
+          echo "⏭️ Skipping API Push"
+        fi
+    id: "Push API"
+    waitFor: ["Build API"]
+
+  # 3. Deploy API
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    entrypoint: "bash"
+    args:
+      - "-c"
+      - |
+        if [ -n "$_API_SERVICE_NAME" ]; then
+          echo "🚀 Deploying API to $_API_SERVICE_NAME..."
+          gcloud run deploy $_API_SERVICE_NAME \
+            --image us-east1-docker.pkg.dev/$PROJECT_ID/$_REPO_NAME/api:latest \
+            --region ${_REGION} \
+            --allow-unauthenticated \
+            --set-env-vars APP_ENV=${_APP_ENV}
+        else
+          echo "⏭️ Skipping API Deploy"
+        fi
+    id: "Deploy API"
+    waitFor: ["Push API"]
+
+  # -------------------------------------------------------------------------
+  # WEB PIPELINE (Runs sequentially after API pipeline by default)
+  # -------------------------------------------------------------------------
+
+  # 4. Build Web
+  - name: "gcr.io/cloud-builders/docker"
+    entrypoint: "bash"
+    args:
+      - "-c"
+      - |
+        if [ -n "$_WEB_SERVICE_NAME" ]; then
+          echo "🏗️ Building Web..."
+          docker build \
+            -f apps/web/Dockerfile \
+            -t us-east1-docker.pkg.dev/$PROJECT_ID/$_REPO_NAME/web:latest \
+            --build-arg APP_ENV=${_APP_ENV} \
+            --build-arg NEXT_PUBLIC_API_URL=${_NEXT_PUBLIC_API_URL} \
+            --build-arg REGION=${_REGION} \
+            --build-arg SERVICE_NAME=${_WEB_SERVICE_NAME} \
+            .
+        else
+          echo "⏭️ Skipping Web Build (No service name defined)"
+        fi
+    id: "Build Web"
+    # Ensure sequential execution if both are active (Web builds after API is deployed)
+    # This reduces concurrency issues and ensures API is theoretically ready
+    waitFor: ["Deploy API"]
+
+  # 5. Push Web
+  - name: "gcr.io/cloud-builders/docker"
+    entrypoint: "bash"
+    args:
+      - "-c"
+      - |
+        if [ -n "$_WEB_SERVICE_NAME" ]; then
+          echo "⬆️ Pushing Web Image..."
+          docker push us-east1-docker.pkg.dev/$PROJECT_ID/$_REPO_NAME/web:latest
+        else
+          echo "⏭️ Skipping Web Push"
+        fi
+    id: "Push Web"
+    waitFor: ["Build Web"]
+
+  # 6. Deploy Web
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    entrypoint: "bash"
+    args:
+      - "-c"
+      - |
+        if [ -n "$_WEB_SERVICE_NAME" ]; then
+          echo "🚀 Deploying Web to $_WEB_SERVICE_NAME..."
+          gcloud run deploy $_WEB_SERVICE_NAME \
+            --image us-east1-docker.pkg.dev/$PROJECT_ID/$_REPO_NAME/web:latest \
+            --region ${_REGION} \
+            --allow-unauthenticated \
+            --set-env-vars APP_ENV=${_APP_ENV}
+        else
+          echo "⏭️ Skipping Web Deploy"
+        fi
+    id: "Deploy Web"
+    waitFor: ["Push Web"]
+
+timeout: "1200s"
+
+substitutions:
+  _APP_ENV: "development"
+  _REGION: "us-east1"
+  _REPO_NAME: "cloud-run-source-deploy" # Default fallback
+  _API_SERVICE_NAME: "" # Empty by default
+  _WEB_SERVICE_NAME: "" # Empty by default
+  _NEXT_PUBLIC_API_URL: ""
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: "E2_HIGHCPU_8"
